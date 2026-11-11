@@ -454,7 +454,7 @@ void CWhycon::updateConfiguration(bool id, float diam, int markers, int size, do
         }
         else
         {
-            for(int i = num_markers_; i > markers; i--) delete detector_array_[i];
+            for(int i = num_markers_; i > markers; i--) delete detector_array_[i - 1];
             detector_array_.resize(markers);
         }
     }

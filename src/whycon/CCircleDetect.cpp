@@ -7,6 +7,18 @@
 namespace whycon
 {
 
+// write a colour to a pixel of either a 3-channel or a mono image (mono gets the first component)
+static inline void setPixel(CRawImage *image, int pos, unsigned char c0, unsigned char c1, unsigned char c2)
+{
+    unsigned char *px = &image->data_[image->bpp_ * pos];
+    px[0] = c0;
+    if (image->bpp_ >= 3)
+    {
+        px[1] = c1;
+        px[2] = c2;
+    }
+}
+
 // int* CCircleDetect::buffer = NULL;
 // int* CCircleDetect::queue = NULL;
 
@@ -551,9 +563,7 @@ SMarker CCircleDetect::findSegment(CRawImage* image, SSegment init)
         for (int p = queueOldStart; p < queueEnd; p++)
         {
             pos = queue.get()[p];
-            image->data_[step * pos + 0] = 0;
-            image->data_[step * pos + 1] = 0;
-            image->data_[step * pos + 2] = 0;
+            setPixel(image, pos, 0, 0, 0);
         }
     }
 
@@ -564,26 +574,20 @@ SMarker CCircleDetect::findSegment(CRawImage* image, SSegment init)
             for (int p = 0; p < queueOldStart; p++)
             {
                 pos = queue.get()[p];
-                image->data_[step * pos + 0] = 255;
-                image->data_[step * pos + 1] = 255;
-                image->data_[step * pos + 2] = 200;
+                setPixel(image, pos, 255, 255, 200);
             }
             if(debug)
             {
                 pos = ((int)outer.x + ((int)outer.y) * image->width_);
                 if (pos > 0 && pos < image->width_ * image->height_)
                 {
-                    image->data_[step * pos + 0] = 255;
-                    image->data_[step * pos + 1] = 0;
-                    image->data_[step * pos + 2] = 0;
+                    setPixel(image, pos, 255, 0, 0);
                 }
 
                 pos = ((int)inner.x + ((int)inner.y) * image->width_);
                 if (pos > 0 && pos < image->width_ * image->height_)
                 {
-                    image->data_[step * pos + 0] = 0;
-                    image->data_[step * pos + 1] = 255;
-                    image->data_[step * pos + 2] = 0;
+                    setPixel(image, pos, 0, 255, 0);
                 }
             }
         }
@@ -663,9 +667,9 @@ bool CCircleDetect::ambiguityAndObtainCode(CRawImage *image)
             pos = (px+py*image->width_);
 
             /*detection from the image*/
-            signal[i][a]  = ptr[(pos+0)*step+0]*(1-gx)*(1-gy)+ptr[(pos+1)*step+0]*gx*(1-gy)+ptr[(pos+image->width_)*step+0]*(1-gx)*gy+ptr[step*(pos+image->width_+1)+0]*gx*gy;
-            signal[i][a] += ptr[(pos+0)*step+1]*(1-gx)*(1-gy)+ptr[(pos+1)*step+1]*gx*(1-gy)+ptr[(pos+image->width_)*step+1]*(1-gx)*gy+ptr[step*(pos+image->width_+1)+1]*gx*gy;
-            signal[i][a] += ptr[(pos+0)*step+2]*(1-gx)*(1-gy)+ptr[(pos+1)*step+2]*gx*(1-gy)+ptr[(pos+image->width_)*step+2]*(1-gx)*gy+ptr[step*(pos+image->width_+1)+2]*gx*gy;
+            signal[i][a] = 0;
+            for (int c = 0; c < step; c++)
+                signal[i][a] += ptr[(pos+0)*step+c]*(1-gx)*(1-gy)+ptr[(pos+1)*step+c]*gx*(1-gy)+ptr[(pos+image->width_)*step+c]*(1-gx)*gy+ptr[step*(pos+image->width_+1)+c]*gx*gy;
         }
 
         //binarize the signal

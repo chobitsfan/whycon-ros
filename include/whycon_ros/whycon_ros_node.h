@@ -1,21 +1,14 @@
 #ifndef WHYCON_ROS_CWHYCONROSNODE_H
 #define WHYCON_ROS_CWHYCONROSNODE_H
 
+#include <memory>
+#include <string>
 #include <vector>
 
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
-#include <dynamic_reconfigure/server.h>
-
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/transform_broadcaster.h>
-
-#include "whycon/whyconConfig.h"
-#include "whycon/SelectMarker.h"
-#include "whycon/SetCalibMethod.h"
-#include "whycon/SetCalibPath.h"
-#include "whycon/SetCoords.h"
-#include "whycon/SetDrawing.h"
-#include "whycon/GetGuiSettings.h"
 
 #include "whycon/whycon.h"
 
@@ -23,68 +16,43 @@
 namespace whycon_ros
 {
 
-class CWhyconROSNode
+class CWhyconROSNode : public rclcpp::Node
 {
 
     public:
-        bool getGuiSettingsCallback(whycon::GetGuiSettings::Request &req, whycon::GetGuiSettings::Response &res);
-
-        bool setDrawingCallback(whycon::SetDrawing::Request& req, whycon::SetDrawing::Response& res);
-
-        bool setCoordsCallback(whycon::SetCoords::Request& req, whycon::SetCoords::Response& res);
-
-        bool setCalibMethodCallback(whycon::SetCalibMethod::Request& req, whycon::SetCalibMethod::Response& res);
-
-        bool setCalibPathCallback(whycon::SetCalibPath::Request& req, whycon::SetCalibPath::Response& res);
-
-        bool selectMarkerCallback(whycon::SelectMarker::Request& req, whycon::SelectMarker::Response& res);
-
-        void reconfigureCallback(whycon::whyconConfig& config, uint32_t level);
-
-        void cameraInfoCallback(const sensor_msgs::CameraInfoConstPtr& msg);
-
-        void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-
-        void start();
-
         CWhyconROSNode();
 
         ~CWhyconROSNode();
 
     private:
-        
-        ros::Subscriber cam_info_sub_;          // camera info subscriber
-        image_transport::Subscriber img_sub_;   // camera image raw subscriber
+        void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr msg);
 
-        image_transport::Publisher img_pub_;    // image publisher for GUI
-        ros::Publisher markers_pub_;            // publisher of MarkerArray
-        ros::Publisher visual_pub_;             // publisher of MarkerArray for RVIZ
+        // apply the runtime-tunable parameters (former dynamic_reconfigure) to WhyCon
+        void updateConfiguration();
 
-        bool draw_coords_;
-        ros::ServiceServer drawing_srv_;
-        ros::ServiceServer calib_path_srv_;
-        ros::ServiceServer coord_system_srv_;
-        ros::ServiceServer calib_method_srv_;
-        ros::ServiceServer select_marker_srv_;
-        ros::ServiceServer gui_settings_srv_;
-        
-        bool publish_visual_;   // whether to publish visualization msgs
-        bool use_gui_;          // generate images for graphic interface?
-        whycon::CWhycon whycon_;        // WhyCon instance
-        whycon::CRawImage *image_;      // image wrapper for WhyCon
-        double circle_diameter_;  // marker diameter [m]
+        // read "fx, fy, cx, cy" and "k1, k2, p1, p2, k3" lines from a CSV file
+        void loadCameraCalib(const std::string &path);
 
-        std::vector<whycon::SMarker> whycon_detections_;    // array of detected markers
-        
-        std::vector<float> intrinsic_mat_;        // intrinsic matrix from camera_info topic
-        std::vector<float> distortion_coeffs_;    // distortion parameters from camera_info topic
+        rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;              // mono8 image subscriber
+        rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;                 // image publisher for GUI
+        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr markers_pub_;    // publisher of detected markers
+        rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr param_cb_;
 
-        dynamic_reconfigure::Server<whycon::whyconConfig> dyn_srv_;
-        dynamic_reconfigure::Server<whycon::whyconConfig>::CallbackType dyn_srv_cb_;
-
+        bool use_gui_;          // publish images with drawn detections?
         bool identify_;
         bool publish_tf_;
-        tf2_ros::TransformBroadcaster tf_broad_;
+        double circle_diameter_;  // marker diameter [m]
+
+        whycon::CWhycon whycon_;        // WhyCon instance
+        whycon::CRawImage *image_;      // image wrapper for WhyCon
+        std::vector<unsigned char> packed_;     // row-packing buffer for padded images
+
+        std::vector<whycon::SMarker> whycon_detections_;    // array of detected markers
+
+        std::vector<float> intrinsic_mat_;        // intrinsic matrix from the CSV file
+        std::vector<float> distortion_coeffs_;    // distortion parameters from the CSV file
+
+        std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broad_;
 };
 
 }
